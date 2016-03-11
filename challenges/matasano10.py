@@ -48,9 +48,9 @@ if __name__ == '__main__':
     dctxt = base64.b64decode(ctxt)
     k = "YELLOW SUBMARINE"
     iv = '\x00'*16
-    x  = aes_cbc_decrypt(dctxt, k, iv)
+    x  = aes_cbc_decrypt(iv+dctxt, k)
     print 'got decryption: '
     print x
     print '\n'*3
-    print 'round trip check'
-    assert aes_cbc_encrypt(x, k, iv) == dctxt
+    assert aes_cbc_encrypt(x, k, iv) == iv+dctxt, "decrypt-encrypt round trip check failed"
+    print 'round trip check passed'
