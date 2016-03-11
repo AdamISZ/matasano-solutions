@@ -13,32 +13,44 @@ from Crypto.Util.number import getPrime
 
 bitlength = 256
 e = 65537
-#Because Crypto.RSA recoils
-#in horror at generating with n<2^1024,
-#we'll construct a key by hand using the prime
-#generation code.
-p, q = [getPrime(bitlength/2) for _ in range(2)]
-n = p*q
-phi = (p-1)*(q-1)
-d = inv(e, phi)
+
+def get_small_rsa_key(bitlength, e):
+    '''Given a public RSA exponent e and a keysize
+    in bits bitlength, return a public modulus n
+    and a private exponent d.
+    '''
+    #Because Crypto.RSA recoils
+    #in horror at generating with n<2^1024,
+    #we'll construct a key by hand using the prime
+    #generation code.    
+    p, q = [getPrime(bitlength/2) for _ in range(2)]
+    n = p*q
+    phi = (p-1)*(q-1)
+    d = inv(e, phi)
+    return (n, d)
 
 def pkcs1v15_oracle(encrypted):
     '''Given a ciphertext, return True if the
     leading bytes correspond to pkcs1 v1.5 for encryption,
-    i.e. they must be 00 and 02, return True if so and False otherwise'''
+    i.e. they must be 00 and 02, return True if so and False otherwise.
+    '''
     decrypted = bi2ba(decrypt(n, d, encrypted, bitlength), fixed=bitlength/8)
-    #print binascii.hexlify(decrypted)
     return True if decrypted[:2]=='\x00\x02' else False
 
 
 def pkcs1v15_pad_for_encryption(m):
+    '''Prepend correct padding for pkcs1 v1.5 encryption to string m.
+    None of the padding bytes may be zero, and a zero byte
+    is used as a delimiter at the end of the padding
+    to mark the start of the message.
+    '''
     padding_length = (bitlength/8) - 2 -1 - len(m)
-    #none of the padding bytes should be 00
     padding = '\x00'
     while '\x00' in padding:
         padding = os.urandom(padding_length)
     return '\x00'+'\x02'+padding+'\x00'+m
 
+n, d = get_small_rsa_key(bitlength, e)
 msg = "kick it, CC"
 pmsg = pkcs1v15_pad_for_encryption(msg)
 c = encrypt(n, e, pmsg, bitlength, outfmt='int')
@@ -47,11 +59,9 @@ c = encrypt(n, e, pmsg, bitlength, outfmt='int')
 #Step 1 is skipped as we work with a ciphertext.
 #Step 2a. Find a s1 that is pkcs conformant.
 B = 2**(bitlength-16)
-
 s1 = int(n/(3*B))
-i = 1
 M = [(2*B, 3*B-1)]
-print "Preparing first s value, can take a minute or so.."
+print "Preparing first s value, can take 30sec or so.."
 while True:
     encs1 = encrypt(n, e, s1, bitlength)
     c1 = c * encs1 % n
@@ -69,7 +79,7 @@ while len(M)>1 or M[-1][1] != M[-1][0]:
     if len(M) > 1:
         #deferred to last challenge (48)
         print 'cant do that yet'
-        break
+        exit(0)
     #2c - choose an r value, then search for s in the bounds
     #until pkcs found, then recompute M and continue
     found = False
@@ -84,9 +94,12 @@ while len(M)>1 or M[-1][1] != M[-1][0]:
                 break
     #step 3 recompute M; for now assume just one
     #of form (max(a, ceil(2B+rn/s)),min(b,floor(3B-1+rn/s)))
+    
+    #this is needed to do ceiling properly for ints in Python2
     q, rem = divmod((2*B + r*n), s)
     new_a = q if rem==0 else q+1
     a = max([a, new_a])
+    #floor is just int() of course
     b = min([b, int((3*B -1 + r*n)/s)])
     M = [(a, b)]
     if b - a < 1:
