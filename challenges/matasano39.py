@@ -48,16 +48,16 @@ def encrypt(modulus, exponent, msg, bitlength=2048, outfmt=None):
         raise NotImplementedError
 
 def decrypt(modulus, decrypt_exp, msg, bitlength=2048, outfmt=None):
-    if isinstance(msg, str):
+    if isinstance(msg, str) or isinstance(msg, bytearray):
         encrypted_int = int(eval('0x'+binascii.hexlify(msg)))
     elif isinstance(msg, int) or isinstance(msg, long):
         encrypted_int = msg
     else:
         raise NotImplementedError
-    decrypted = pow(msg, decrypt_exp, modulus)
+    decrypted = pow(encrypted_int, decrypt_exp, modulus)
     if isinstance(msg, int) or isinstance(msg, long) or outfmt=='int':
         return decrypted
-    elif isinstance(msg, str):
+    elif isinstance(msg, str) or isinstance(msg, bytearray):
         return bi2ba(decrypted, fixed=bitlength/8)
     else:
         raise NotImplementedError
